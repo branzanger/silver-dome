@@ -1,0 +1,1815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Silver Dome</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+/* ================================================================
+   SILVER DOME  --  Operational Dashboard
+   Clean, functional, Palantir-inspired design
+   ================================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* Palantir Blueprint dark theme palette */
+  --bg:           #1c2127;
+  --bg-panel:     #252a31;
+  --bg-card:      #2f343c;
+  --bg-hover:     #383e47;
+  --border:       #383e47;
+  --text:         #f6f7f9;
+  --text-secondary: #abb3bf;
+  --text-dim:     #5f6b7c;
+  --primary:      #2d72d2;
+  --primary-soft: rgba(45, 114, 210, 0.08);
+  --warning:      #c87619;
+  --warning-soft: rgba(200, 118, 25, 0.08);
+  --danger:       #cd4246;
+  --danger-soft:  rgba(205, 66, 70, 0.06);
+  --success:      #238551;
+  --success-soft: rgba(35, 133, 81, 0.08);
+  --mono:         -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+  --sans:         -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---- Top Bar ---- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  height: 40px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+  flex-shrink: 0;
+}
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.logo {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: var(--text);
+}
+
+.site-tag {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg);
+}
+
+.conn-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.conn-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--danger);
+  transition: background 0.3s;
+}
+.conn-dot.connected {
+  background: var(--success);
+}
+
+.status-badge {
+  font-size: 11px;
+  font-weight: 400;
+  padding: 2px 8px;
+  border-radius: 2px;
+  border: none;
+  color: var(--text-secondary);
+  background: var(--bg-card);
+}
+
+.clock {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* ---- Main Layout ---- */
+.main-layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  grid-template-rows: 1fr;
+  height: calc(100vh - 40px);
+}
+
+/* ---- Left Sidebar ---- */
+.sidebar {
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-panel);
+}
+
+.sidebar-section {
+  border-bottom: 1px solid var(--border);
+  padding: 12px;
+}
+
+.sidebar-section:last-child {
+  border-bottom: none;
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.5px;
+}
+
+.section-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+/* ---- Radar (compact) ---- */
+.radar-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0;
+}
+
+#radarCanvas {
+  display: block;
+}
+
+/* ---- Threat Card ---- */
+.threat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px;
+}
+
+.threat-card-idle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.threat-card-idle .idle-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+  opacity: 0.4;
+}
+
+.threat-card-active {
+  display: none;
+}
+.threat-card-active.visible { display: block; }
+
+.threat-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.threat-type-label {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.threat-level-tag {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.threat-data {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.threat-datum {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 8px;
+  text-align: center;
+}
+
+.threat-datum-label {
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+
+.threat-datum-value {
+  font-family: var(--mono);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.threat-datum-unit {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+/* Confidence bar */
+.conf-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.conf-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+  width: 70px;
+}
+
+.conf-track {
+  flex: 1;
+  height: 4px;
+  background: var(--bg);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.conf-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--primary);
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+.conf-pct {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  width: 35px;
+  text-align: right;
+}
+
+/* ---- Sensor & Effector Rows ---- */
+.sensor-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.sensor-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+
+.sensor-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+  transition: all 0.3s;
+}
+
+.sensor-item.active .sensor-dot {
+  background: var(--primary);
+  border-color: var(--primary);
+  box-shadow: none;
+}
+
+.sensor-name {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.sensor-item.active .sensor-name {
+  color: var(--text);
+}
+
+.sensor-val {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  margin-left: auto;
+}
+
+/* Effector rows */
+.effector-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+
+.effector-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  width: 50px;
+  flex-shrink: 0;
+}
+
+.effector-val {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.gimbal-mini {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  position: relative;
+  background: var(--bg);
+  flex-shrink: 0;
+}
+
+.gimbal-needle {
+  position: absolute;
+  width: 2px; height: 9px;
+  background: var(--primary);
+  left: 50%; top: 3px;
+  transform-origin: 50% 100%;
+  transform: translateX(-50%) rotate(0deg);
+  border-radius: 1px;
+  transition: transform 0.4s ease;
+}
+
+.gimbal-dot {
+  position: absolute;
+  width: 2px; height: 2px;
+  border-radius: 50%;
+  background: var(--primary);
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.laser-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.laser-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  transition: all 0.3s;
+}
+.laser-dot.active {
+  background: var(--text-secondary);
+  border-color: var(--text-secondary);
+  box-shadow: none;
+}
+
+.laser-text {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+}
+.laser-text.on  { color: var(--text); }
+.laser-text.off { color: var(--text-dim); }
+
+/* ---- Detection Feed ---- */
+.feed-wrap {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.feed-entry {
+  font-size: 10px;
+  line-height: 1.8;
+  padding: 1px 6px;
+  color: var(--text-dim);
+}
+
+.feed-time {
+  color: var(--text-dim);
+  margin-right: 4px;
+}
+
+.feed-tag {
+  font-weight: 500;
+  margin-right: 4px;
+  color: var(--text-dim);
+}
+
+.feed-msg {
+  color: var(--text-dim);
+}
+
+/* Feed entry types */
+/* All feed entries identical — no color differentiation */
+
+.feed-entry.faded { opacity: 0.3; }
+
+/* ---- Map (hero area) ---- */
+.map-area {
+  position: relative;
+  overflow: hidden;
+}
+
+#mapContainer {
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+}
+
+/* Leaflet dark overrides */
+.leaflet-container { background: var(--bg) !important; }
+.leaflet-control-zoom a {
+  background: var(--bg-panel) !important;
+  color: var(--text-secondary) !important;
+  border-color: var(--border) !important;
+  font-size: 14px !important;
+  width: 28px !important;
+  height: 28px !important;
+  line-height: 28px !important;
+}
+.leaflet-control-zoom a:hover {
+  background: var(--bg-card) !important;
+  color: var(--text) !important;
+}
+.leaflet-control-attribution {
+  background: rgba(18, 22, 30, 0.85) !important;
+  color: var(--text-dim) !important;
+  font-size: 9px !important;
+}
+.leaflet-control-attribution a {
+  color: var(--text-dim) !important;
+}
+
+/* Site marker */
+.site-marker {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 4px rgba(255,255,255,0.08);
+}
+
+.site-label-div {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+  background: rgba(0,0,0,0.5) !important;
+  padding: 2px 8px !important;
+  border-radius: 3px !important;
+  border: none !important;
+  box-shadow: none !important;
+  letter-spacing: 1px;
+}
+
+/* Threat markers on map */
+.map-threat {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: rgba(205, 66, 70, 0.4);
+  border: 2px solid var(--danger);
+}
+.map-threat.medium {
+  background: rgba(200, 118, 25, 0.3);
+  border-color: var(--warning);
+}
+
+/* Map overlay info (bottom-left on map) */
+.map-overlay {
+  position: absolute;
+  bottom: 28px;
+  left: 10px;
+  z-index: 1000;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  background: rgba(18, 22, 30, 0.85);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 6px 10px;
+  line-height: 1.6;
+  pointer-events: none;
+}
+
+.map-overlay-val {
+  color: var(--text-secondary);
+}
+
+/* ---- Scrollbar ---- */
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ---- Responsive ---- */
+@media (max-width: 800px) {
+  .main-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
+  }
+  .sidebar {
+    order: 2;
+    max-height: 280px;
+    border-right: none;
+    border-top: 1px solid var(--border);
+  }
+  .map-area { order: 1; }
+}
+    /* Per-sensor confidence breakdown */
+    .sensor-conf-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3px; margin-top: 8px; }
+    .sensor-conf-item { display: flex; align-items: center; gap: 4px; }
+    .sensor-conf-label { font-family: var(--mono); font-size: 9px; color: var(--text-dim); width: 22px; flex-shrink: 0; }
+    .sensor-conf-track { flex: 1; height: 3px; background: var(--bg); border-radius: 2px; overflow: hidden; }
+    .sensor-conf-fill { height: 100%; width: 0%; background: var(--primary); border-radius: 2px; transition: width 0.5s ease; }
+    .sensor-conf-pct { font-family: var(--mono); font-size: 9px; color: var(--text-dim); width: 26px; text-align: right; }
+    .threat-card-active.visible .threat-level-tag.high { color: var(--danger); font-weight: 700; }
+    .threat-card.threat-high { border-color: var(--danger); box-shadow: 0 0 20px rgba(205, 66, 70, 0.15); }
+
+    /* ---- Camera PiP ---- */
+    .camera-pip {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1000;
+      width: 320px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+      background: var(--bg-panel);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    }
+    .camera-pip.threat-active {
+      border-color: var(--danger);
+      box-shadow: 0 4px 20px rgba(205, 66, 70, 0.3);
+    }
+    .camera-toggle {
+      font-size: 12px; cursor: pointer; color: var(--text-dim);
+      padding: 0 4px; line-height: 1; margin-left: 6px;
+    }
+    .camera-toggle:hover { color: var(--text); }
+    .camera-show-btn {
+      position: absolute; top: 10px; right: 10px; z-index: 1000;
+      font-family: var(--mono); font-size: 10px; font-weight: 600;
+      color: var(--text-secondary); background: var(--bg-panel);
+      border: 1px solid var(--border); border-radius: 3px;
+      padding: 4px 10px; cursor: pointer; letter-spacing: 0.5px;
+      display: none;
+    }
+    .camera-show-btn:hover { background: var(--bg-card); color: var(--text); }
+    .camera-pip-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 8px;
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+    }
+    .camera-title {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      letter-spacing: 1px;
+    }
+    .camera-badge {
+      font-family: var(--mono);
+      font-size: 9px;
+      font-weight: 600;
+      color: var(--success);
+      padding: 1px 6px;
+      border: 1px solid var(--success);
+      border-radius: 2px;
+    }
+    .camera-badge.threat {
+      color: var(--danger);
+      border-color: var(--danger);
+      animation: badge-pulse 1s ease-in-out infinite;
+    }
+    @keyframes badge-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .camera-pip-wrap {
+      position: relative;
+      line-height: 0;
+    }
+    .camera-pip-wrap img {
+      width: 100%;
+      display: block;
+    }
+    .camera-overlay-br {
+      position: absolute;
+      bottom: 4px;
+      right: 6px;
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--success);
+      letter-spacing: 1px;
+      pointer-events: none;
+      padding: 1px 6px;
+      background: rgba(0,0,0,0.6);
+      border-radius: 2px;
+    }
+    .camera-overlay-br.threat {
+      color: var(--danger);
+      text-shadow: 0 0 10px rgba(205, 66, 70, 0.8);
+    }
+
+    /* ---- Sensor Network ---- */
+    .node-list { display: flex; flex-direction: column; gap: 3px; }
+    .node-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 4px 8px; background: var(--bg-card);
+      border: 1px solid var(--border); border-radius: 3px;
+      font-family: var(--mono); font-size: 10px;
+    }
+    .node-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .node-dot.online { background: var(--success); }
+    .node-dot.sim { background: var(--primary); }
+    .node-name { color: var(--text); font-weight: 600; flex: 1; }
+    .node-type { color: var(--text-dim); font-size: 9px; }
+    .node-status { color: var(--text-dim); font-size: 9px; margin-left: auto; }
+
+    /* Map node markers */
+    .map-node {
+      width: 20px; height: 20px; border-radius: 50%;
+      border: 2px solid var(--primary);
+      background: rgba(45, 114, 210, 0.3);
+      cursor: grab;
+      transition: box-shadow 0.3s;
+    }
+    .map-node:hover { box-shadow: 0 0 8px rgba(45, 114, 210, 0.5); }
+    .map-node.primary {
+      border-color: var(--success);
+      background: rgba(35, 133, 81, 0.3);
+    }
+    .map-node-label {
+      font-family: var(--mono) !important;
+      font-size: 9px !important; font-weight: 600 !important;
+      color: #fff !important; white-space: nowrap;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+      background: rgba(0,0,0,0.6) !important;
+      padding: 2px 6px !important; border-radius: 2px !important;
+      border: none !important; box-shadow: none !important;
+    }
+    .map-node-label::before { display: none !important; }
+    .map-node-phone {
+      width: 12px; height: 12px; border-radius: 50%;
+      border: 1.5px solid rgba(255,255,255,0.6);
+      background: rgba(255,255,255,0.15);
+      cursor: grab;
+    }
+    .map-node-phone:hover { box-shadow: 0 0 6px rgba(255,255,255,0.3); }
+    .map-phone-label {
+      font-family: var(--mono) !important;
+      font-size: 8px !important; font-weight: 400 !important;
+      color: rgba(255,255,255,0.7) !important; white-space: nowrap;
+      background: rgba(0,0,0,0.5) !important;
+      padding: 1px 4px !important; border-radius: 2px !important;
+      border: none !important; box-shadow: none !important;
+    }
+    .map-phone-label::before { display: none !important; }
+    .map-building {
+      font-family: var(--mono);
+      font-size: 10px; font-weight: 700;
+      color: #fff; white-space: nowrap;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.9);
+    }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     TOP BAR
+     ============================================================ -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="logo">SILVER DOME</div>
+    <div class="site-tag" id="siteTag">AL-UDEID-QA</div>
+    <div class="conn-indicator">
+      <div class="conn-dot" id="connDot"></div>
+      <span id="connLabel">DISCONNECTED</span>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="status-badge all-clear" id="statusBadge">ALL CLEAR</div>
+    <div class="clock" id="clockUtc">00:00:00 UTC</div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MAIN: SIDEBAR + MAP
+     ============================================================ -->
+<div class="main-layout">
+
+  <!-- LEFT SIDEBAR -->
+  <div class="sidebar">
+
+    <!-- Radar Scope (compact) -->
+    <div class="sidebar-section">
+      <div class="section-header">
+        <span class="section-title">Radar Scope</span>
+        <span class="section-badge" id="radarMode">Scanning</span>
+      </div>
+      <div class="radar-wrap">
+        <canvas id="radarCanvas" width="260" height="260"></canvas>
+      </div>
+    </div>
+
+    <!-- Threat Classification -->
+    <div class="sidebar-section">
+      <div class="section-header">
+        <span class="section-title">Threat Classification</span>
+      </div>
+      <div class="threat-card">
+        <!-- Idle -->
+        <div class="threat-card-idle" id="threatIdle">
+          <div class="idle-dot"></div>
+          <span>No active threats</span>
+        </div>
+        <!-- Active (hidden by default) -->
+        <div class="threat-card-active" id="threatActive">
+          <div class="threat-top">
+            <span class="threat-type-label" id="threatTypeLabel">UAV</span>
+            <span class="threat-level-tag high" id="threatLevelTag">HIGH</span>
+          </div>
+          <div class="threat-data">
+            <div class="threat-datum">
+              <div class="threat-datum-label">Bearing</div>
+              <div class="threat-datum-value" id="threatBearing">---<span class="threat-datum-unit">&deg;</span></div>
+            </div>
+            <div class="threat-datum">
+              <div class="threat-datum-label">Range</div>
+              <div class="threat-datum-value" id="threatRange">---<span class="threat-datum-unit">m</span></div>
+            </div>
+          </div>
+          <div class="conf-row">
+            <span class="conf-label">Confidence</span>
+            <div class="conf-track"><div class="conf-fill" id="confFill"></div></div>
+            <span class="conf-pct" id="confPct">0%</span>
+          </div>
+          <div class="sensor-conf-grid" id="sensorConfGrid">
+            <div class="sensor-conf-item"><span class="sensor-conf-label">RF</span><div class="sensor-conf-track"><div class="sensor-conf-fill" id="confRf"></div></div><span class="sensor-conf-pct" id="confRfPct">--</span></div>
+            <div class="sensor-conf-item"><span class="sensor-conf-label">PIR</span><div class="sensor-conf-track"><div class="sensor-conf-fill" id="confPir"></div></div><span class="sensor-conf-pct" id="confPirPct">--</span></div>
+            <div class="sensor-conf-item"><span class="sensor-conf-label">CAM</span><div class="sensor-conf-track"><div class="sensor-conf-fill" id="confVis"></div></div><span class="sensor-conf-pct" id="confVisPct">--</span></div>
+            <div class="sensor-conf-item"><span class="sensor-conf-label">AUD</span><div class="sensor-conf-track"><div class="sensor-conf-fill" id="confAud"></div></div><span class="sensor-conf-pct" id="confAudPct">--</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sensors & Effectors -->
+    <div class="sidebar-section">
+      <div class="section-header">
+        <span class="section-title">Sensors</span>
+      </div>
+      <div class="sensor-grid">
+        <div class="sensor-item" id="sensorRf">
+          <div class="sensor-dot"></div>
+          <span class="sensor-name">RF</span>
+          <span class="sensor-val">SIM</span>
+        </div>
+        <div class="sensor-item" id="sensorPir">
+          <div class="sensor-dot"></div>
+          <span class="sensor-name">PIR</span>
+          <span class="sensor-val">SIM</span>
+        </div>
+        <div class="sensor-item" id="sensorCam">
+          <div class="sensor-dot"></div>
+          <span class="sensor-name">VISION</span>
+          <span class="sensor-val">Shahed AI</span>
+        </div>
+        <div class="sensor-item" id="sensorDist">
+          <div class="sensor-dot"></div>
+          <span class="sensor-name">DIST</span>
+          <span class="sensor-val" id="sensorDistVal">---</span>
+        </div>
+        <div class="sensor-item" id="sensorAudio">
+          <div class="sensor-dot"></div>
+          <span class="sensor-name">AUDIO</span>
+          <span class="sensor-val">Mic FFT</span>
+        </div>
+      </div>
+      <div style="margin-top: 8px;">
+        <div class="section-header">
+          <span class="section-title">RF Signal</span>
+          <span class="section-badge" id="rfSignalVal">-- dB</span>
+        </div>
+        <canvas id="sparklineCanvas" width="296" height="32" style="display:block; width:100%; height:32px; border-radius: 3px;"></canvas>
+      </div>
+      <div style="margin-top: 10px;">
+        <div class="section-header">
+          <span class="section-title">Effectors</span>
+        </div>
+        <div class="effector-row">
+          <span class="effector-label">Gimbal</span>
+          <div class="gimbal-mini">
+            <div class="gimbal-needle" id="gimbalNeedle"></div>
+            <div class="gimbal-dot"></div>
+          </div>
+          <span class="effector-val" id="gimbalValue">BRG 000&deg; / TILT 090&deg;</span>
+        </div>
+        <div class="effector-row">
+          <span class="effector-label">Laser</span>
+          <div class="laser-indicator">
+            <div class="laser-dot" id="laserDot"></div>
+            <span class="laser-text off" id="laserLabel">OFF</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sensor Network -->
+    <div class="sidebar-section">
+      <div class="section-header">
+        <span class="section-title">Sensor Network</span>
+        <span class="section-badge" id="nodeCount">5 nodes</span>
+      </div>
+      <div id="nodeList" class="node-list"></div>
+    </div>
+
+    <!-- Detection Feed -->
+    <div class="sidebar-section">
+      <div class="section-header">
+        <span class="section-title">Detection Feed</span>
+        <span class="section-badge" id="feedCount">0</span>
+      </div>
+      <div class="feed-wrap" id="feedWrap">
+        <div id="feedList"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- MAP (hero) with Camera PiP overlay -->
+  <div class="map-area">
+    <div id="mapContainer"></div>
+    <div class="map-overlay" id="mapOverlay">
+      25.1175&deg;N, 51.3230&deg;E &nbsp; <span class="map-overlay-val" id="mapOverlayStatus">ALL CLEAR</span>
+    </div>
+    <!-- Camera PiP -->
+    <div class="camera-pip" id="cameraPip">
+      <div class="camera-pip-header">
+        <span class="camera-title">LIVE FEED</span>
+        <span class="camera-badge" id="cameraBadge">SCANNING</span>
+        <span class="camera-toggle" id="cameraToggle" onclick="toggleCamera()" title="Toggle camera feed">&#x2715;</span>
+      </div>
+      <div class="camera-pip-wrap">
+        <img id="cameraFeed" src="/video_feed" alt="Camera Feed" />
+        <div class="camera-overlay-br" id="cameraOverlayBr">NO THREAT</div>
+      </div>
+    </div>
+    <div class="camera-show-btn" id="cameraShowBtn" onclick="toggleCamera()">SHOW CAMERA</div>
+  </div>
+
+</div>
+
+<!-- ============================================================
+     LEAFLET JS
+     ============================================================ -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- ============================================================
+     JAVASCRIPT
+     ============================================================ -->
+<script>
+(function() {
+  "use strict";
+
+  /* ================================================================
+     CONSTANTS
+     ================================================================ */
+  var MAX_FEED    = 40;
+  var MAX_RANGE   = 5;
+  var SWEEP_SPEED = 30;
+  var SITE_LAT    = 25.1175;
+  var SITE_LNG    = 51.3230;
+  var MAP_SCALE   = 200;
+
+  var COL_BG       = "#1c2127";
+  var COL_GRID     = "#2f343c";
+  var COL_RING     = "rgba(45, 114, 210, 0.08)";
+  var COL_PRIMARY  = "#2d72d2";
+  var COL_DIM      = "#5f6b7c";
+  var COL_WARNING  = "#c87619";
+  var COL_DANGER   = "#cd4246";
+
+  /* ================================================================
+     DOM REFS
+     ================================================================ */
+  var canvas       = document.getElementById("radarCanvas");
+  var ctx          = canvas.getContext("2d");
+  var connDot      = document.getElementById("connDot");
+  var connLabel    = document.getElementById("connLabel");
+  var statusBadge  = document.getElementById("statusBadge");
+  var clockUtc     = document.getElementById("clockUtc");
+  var radarMode    = document.getElementById("radarMode");
+  var feedList     = document.getElementById("feedList");
+  var feedCountEl  = document.getElementById("feedCount");
+  var threatIdle   = document.getElementById("threatIdle");
+  var threatActive = document.getElementById("threatActive");
+  var threatTypeLabel  = document.getElementById("threatTypeLabel");
+  var threatLevelTag   = document.getElementById("threatLevelTag");
+  var threatBearing    = document.getElementById("threatBearing");
+  var threatRange      = document.getElementById("threatRange");
+  var confPct      = document.getElementById("confPct");
+  var confFill     = document.getElementById("confFill");
+  var gimbalNeedle = document.getElementById("gimbalNeedle");
+  var gimbalValue  = document.getElementById("gimbalValue");
+  var laserDot     = document.getElementById("laserDot");
+  var laserLabel   = document.getElementById("laserLabel");
+  var siteTag      = document.getElementById("siteTag");
+  var sensorDistVal = document.getElementById("sensorDistVal");
+  var sparklineCanvas = document.getElementById("sparklineCanvas");
+  var sparklineCtx = sparklineCanvas ? sparklineCanvas.getContext("2d") : null;
+  var rfSignalVal = document.getElementById("rfSignalVal");
+  var mapOverlayStatus = document.getElementById("mapOverlayStatus");
+
+  var sensorEls = {
+    rf:       document.getElementById("sensorRf"),
+    pir:      document.getElementById("sensorPir"),
+    visual:   document.getElementById("sensorCam"),
+    distance: document.getElementById("sensorDist"),
+    acoustic: document.getElementById("sensorAudio")
+  };
+
+  /* ================================================================
+     STATE
+     ================================================================ */
+  var state = {
+    threat_level: "LOW",
+    confidence: 0,
+    bearing_deg: 0,
+    range_m: null,
+    active_sensors: [],
+    status: "ALL_CLEAR",
+    gimbal_bearing: 0,
+    laser_active: false,
+    site_id: "FOB-ALPHA",
+    threats: [],
+    radar_points: []
+  };
+
+  var prevState      = {};
+  var sweepAngle     = 0;
+  var lastFrameTime  = 0;
+  var threatPulse    = 0;
+  var connected      = false;
+  var feedEntries    = [];
+  var seenThreatIds  = {};
+  var map            = null;
+  var siteMarker     = null;
+  var threatMarkers  = [];
+
+  /* ================================================================
+     UTILITY
+     ================================================================ */
+  function pad2(n) { return n < 10 ? "0" + n : "" + n; }
+  function pad3(n) { var s = String(n); while (s.length < 3) s = "0" + s; return s; }
+  function deg2rad(deg) { return (deg - 90) * Math.PI / 180; }
+
+  function nowTimeStr() {
+    var d = new Date();
+    return pad2(d.getUTCHours()) + ":" + pad2(d.getUTCMinutes()) + ":" + pad2(d.getUTCSeconds());
+  }
+
+  function classifyTarget(sensors) {
+    if (!sensors || !sensors.length) return { type: "Unknown", icon: "" };
+    var hasV = sensors.indexOf("visual") >= 0;
+    var hasR = sensors.indexOf("rf") >= 0;
+    var hasP = sensors.indexOf("pir") >= 0;
+    var hasA = sensors.indexOf("acoustic") >= 0;
+    if (hasV && hasA) return { type: "SHAHED-136 CONFIRMED" };
+    if (hasV) return { type: "SHAHED-136" };
+    if (hasA) return { type: "Acoustic Contact" };
+    if (hasR) return { type: "RF Emitter" };
+    if (hasP) return { type: "Motion" };
+    return { type: "Unknown" };
+  }
+
+  /* ================================================================
+     LEAFLET MAP
+     ================================================================ */
+  /* ================================================================
+     PERIMETER DEFENSE NETWORK
+     ================================================================ */
+  var NODES = [
+    // Hardware nodes (outer perimeter fence line)
+    { id: "NODE-01", name: "Laptop (Primary)", type: "EO/IR/Audio", lat: 25.1280, lng: 51.3130, primary: true, kind: "hw" },
+    { id: "NODE-02", name: "Unit Alpha",       type: "Acoustic",    lat: 25.1280, lng: 51.3340, kind: "hw" },
+    { id: "NODE-03", name: "Unit Bravo",       type: "Acoustic",    lat: 25.1060, lng: 51.3340, kind: "hw" },
+    { id: "NODE-04", name: "Unit Charlie",     type: "Acoustic",    lat: 25.1060, lng: 51.3130, kind: "hw" },
+    { id: "NODE-05", name: "Unit Delta",       type: "Acoustic/RF", lat: 25.1175, lng: 51.3380, kind: "hw" },
+    // Phone mesh nodes (soldiers in built-up areas)
+    { id: "PH-01", name: "Sgt. Torres",  type: "Phone Mic", lat: 25.1200, lng: 51.3200, kind: "phone" },
+    { id: "PH-02", name: "Cpl. Reyes",   type: "Phone Mic", lat: 25.1150, lng: 51.3260, kind: "phone" },
+    { id: "PH-03", name: "Pvt. Kim",     type: "Phone Mic", lat: 25.1220, lng: 51.3270, kind: "phone" },
+    { id: "PH-04", name: "Sgt. Okafor",  type: "Phone Mic", lat: 25.1130, lng: 51.3190, kind: "phone" },
+    { id: "PH-05", name: "Lt. Park",     type: "Phone Mic", lat: 25.1185, lng: 51.3230, kind: "phone" },
+    { id: "PH-06", name: "Cpl. Davis",   type: "Phone Mic", lat: 25.1110, lng: 51.3250, kind: "phone" }
+  ];
+
+  // Base compound polygon (main built-up area east of runways)
+  var BUILDING = [
+    [25.1250, 51.3170],
+    [25.1250, 51.3310],
+    [25.1100, 51.3310],
+    [25.1100, 51.3170]
+  ];
+
+  var nodeMarkers = [];
+  var coveragePolygon = null;
+  var buildingPolygon = null;
+  var connectionLines = [];
+
+  function updateCoveragePolygon() {
+    if (!map) return;
+    // Build convex hull from node positions
+    var points = [];
+    for (var i = 0; i < nodeMarkers.length; i++) {
+      var ll = nodeMarkers[i].getLatLng();
+      points.push([ll.lat, ll.lng]);
+    }
+    if (points.length < 3) return;
+
+    // Simple convex hull (gift wrapping)
+    var hull = convexHull(points);
+
+    if (coveragePolygon) {
+      coveragePolygon.setLatLngs(hull);
+    } else {
+      coveragePolygon = L.polygon(hull, {
+        color: "rgba(45, 114, 210, 0.6)",
+        fillColor: "rgba(45, 114, 210, 0.35)",
+        fillOpacity: 0.35,
+        weight: 2,
+        dashArray: "6,4"
+      }).addTo(map);
+    }
+
+    // Update connection lines from each node to building center
+    for (var j = 0; j < connectionLines.length; j++) {
+      map.removeLayer(connectionLines[j]);
+    }
+    connectionLines = [];
+    for (var k = 0; k < nodeMarkers.length; k++) {
+      var nl = nodeMarkers[k].getLatLng();
+      var line = L.polyline([[nl.lat, nl.lng], [SITE_LAT, SITE_LNG]], {
+        color: "rgba(45, 114, 210, 0.15)",
+        weight: 1,
+        dashArray: "3,5"
+      }).addTo(map);
+      connectionLines.push(line);
+    }
+  }
+
+  function convexHull(points) {
+    points = points.slice().sort(function(a, b) { return a[0] - b[0] || a[1] - b[1]; });
+    if (points.length <= 2) return points;
+    var lower = [];
+    for (var i = 0; i < points.length; i++) {
+      while (lower.length >= 2 && cross(lower[lower.length-2], lower[lower.length-1], points[i]) <= 0) lower.pop();
+      lower.push(points[i]);
+    }
+    var upper = [];
+    for (var j = points.length - 1; j >= 0; j--) {
+      while (upper.length >= 2 && cross(upper[upper.length-2], upper[upper.length-1], points[j]) <= 0) upper.pop();
+      upper.push(points[j]);
+    }
+    upper.pop(); lower.pop();
+    return lower.concat(upper);
+  }
+
+  function cross(o, a, b) {
+    return (a[0]-o[0])*(b[1]-o[1]) - (a[1]-o[1])*(b[0]-o[0]);
+  }
+
+  function renderNodeList() {
+    var el = document.getElementById("nodeList");
+    var countEl = document.getElementById("nodeCount");
+    if (!el) return;
+    var hwNodes = NODES.filter(function(n) { return n.kind === "hw"; });
+    var phoneNodes = NODES.filter(function(n) { return n.kind === "phone"; });
+    if (countEl) countEl.textContent = NODES.length + " nodes";
+
+    var html = '<div style="font-size:9px;color:var(--text-dim);margin-bottom:3px;letter-spacing:0.5px">HARDWARE</div>';
+    for (var i = 0; i < hwNodes.length; i++) {
+      var n = hwNodes[i];
+      var dotClass = n.primary ? "online" : "sim";
+      var statusText = n.primary ? "LIVE" : "SIM";
+      html += '<div class="node-item">'
+            + '<div class="node-dot ' + dotClass + '"></div>'
+            + '<span class="node-name">' + n.id + '</span>'
+            + '<span class="node-type">' + n.type + '</span>'
+            + '<span class="node-status">' + statusText + '</span>'
+            + '</div>';
+    }
+    html += '<div style="font-size:9px;color:var(--text-dim);margin:5px 0 3px;letter-spacing:0.5px">PHONE MESH (' + phoneNodes.length + ' devices)</div>';
+    for (var j = 0; j < phoneNodes.length; j++) {
+      var p = phoneNodes[j];
+      html += '<div class="node-item">'
+            + '<div class="node-dot sim"></div>'
+            + '<span class="node-name">' + p.name + '</span>'
+            + '<span class="node-type">Acoustic</span>'
+            + '<span class="node-status">SIM</span>'
+            + '</div>';
+    }
+    el.innerHTML = html;
+  }
+
+  function initMap() {
+    if (typeof L === "undefined") {
+      setTimeout(initMap, 200);
+      return;
+    }
+
+    map = L.map("mapContainer", {
+      center: [SITE_LAT, SITE_LNG],
+      zoom: 14,
+      zoomControl: true,
+      attributionControl: true
+    });
+
+    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+      attribution: '&copy; Esri, Maxar, Earthstar Geographics',
+      maxZoom: 19
+    }).addTo(map);
+
+    // Building polygon
+    buildingPolygon = L.polygon(BUILDING, {
+      color: "rgba(255, 255, 255, 0.5)",
+      fillColor: "rgba(255, 255, 255, 0.08)",
+      weight: 2
+    }).addTo(map);
+
+    // Building label
+    L.marker([SITE_LAT, SITE_LNG], {
+      icon: L.divIcon({
+        className: "map-building",
+        html: '<div style="text-align:center;line-height:1.5;background:rgba(0,0,0,0.6);padding:4px 10px;border-radius:3px;border:1px solid rgba(255,255,255,0.2)">AL UDEID AIR BASE<br><span style="font-size:9px;font-weight:400;opacity:0.7;letter-spacing:2px">PROTECTED ZONE</span></div>',
+        iconSize: [140, 40],
+        iconAnchor: [70, 20]
+      })
+    }).addTo(map);
+
+    // Sensor nodes (draggable)
+    for (var i = 0; i < NODES.length; i++) {
+      (function(node, idx) {
+        var isPhone = node.kind === "phone";
+        var markerClass, markerSize, labelClass, labelOffset;
+
+        if (isPhone) {
+          markerClass = "map-node-phone";
+          markerSize = [12, 12];
+          labelClass = "map-phone-label";
+          labelOffset = [8, 0];
+        } else {
+          markerClass = node.primary ? "map-node primary" : "map-node";
+          markerSize = [20, 20];
+          labelClass = "map-node-label";
+          labelOffset = [12, 0];
+        }
+
+        var marker = L.marker([node.lat, node.lng], {
+          draggable: true,
+          icon: L.divIcon({
+            className: "",
+            html: '<div class="' + markerClass + '"></div>',
+            iconSize: markerSize,
+            iconAnchor: [markerSize[0]/2, markerSize[1]/2]
+          })
+        }).addTo(map);
+
+        var labelHtml = isPhone
+          ? node.name
+          : node.id + " <span style='opacity:0.5;font-size:8px'>" + node.type + "</span>";
+
+        marker.bindTooltip(labelHtml, {
+          permanent: !isPhone,
+          direction: "right",
+          offset: labelOffset,
+          className: labelClass
+        });
+
+        marker.on("drag", function() { updateCoveragePolygon(); });
+        marker.on("dragend", function() { updateCoveragePolygon(); });
+        nodeMarkers.push(marker);
+      })(NODES[i], i);
+    }
+
+    // Draw initial coverage
+    updateCoveragePolygon();
+
+    // Render sidebar node list
+    renderNodeList();
+
+    // Site center marker (small)
+    siteMarker = L.marker([SITE_LAT, SITE_LNG], {
+      icon: L.divIcon({
+        className: "",
+        html: '<div class="site-marker"></div>',
+        iconSize: [14, 14],
+        iconAnchor: [7, 7]
+      })
+    }).addTo(map);
+
+    setTimeout(function() { map.invalidateSize(); }, 100);
+    setTimeout(function() { map.invalidateSize(); }, 500);
+  }
+
+  function updateMapThreats() {
+    if (!map) return;
+
+    for (var i = 0; i < threatMarkers.length; i++) {
+      map.removeLayer(threatMarkers[i]);
+    }
+    threatMarkers = [];
+
+    if (!state.threats || !state.threats.length) return;
+
+    for (var t = 0; t < state.threats.length; t++) {
+      var threat = state.threats[t];
+      var bearing = threat.bearing || 0;
+      var range   = threat.range || 2;
+      var level   = (threat.level || "HIGH").toUpperCase();
+
+      var bearingRad = bearing * Math.PI / 180;
+      var scaledRange = range * MAP_SCALE;
+      var dLat = (scaledRange / 111320) * Math.cos(bearingRad);
+      var dLng = (scaledRange / (111320 * Math.cos(SITE_LAT * Math.PI / 180))) * Math.sin(bearingRad);
+
+      var markerClass = "map-threat";
+      if (level === "MEDIUM") markerClass += " medium";
+
+      var marker = L.marker([SITE_LAT + dLat, SITE_LNG + dLng], {
+        icon: L.divIcon({
+          className: "",
+          html: '<div class="' + markerClass + '"></div>',
+          iconSize: [12, 12],
+          iconAnchor: [6, 6]
+        })
+      }).addTo(map);
+      threatMarkers.push(marker);
+    }
+  }
+
+  /* ================================================================
+     DRAW RADAR (compact 260px)
+     ================================================================ */
+  function drawRadar() {
+    var w = canvas.width, h = canvas.height;
+    var cx = w / 2, cy = h / 2;
+    var r = (Math.min(w, h) / 2) - 18;
+    if (r < 30) return;
+
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = COL_BG;
+    ctx.fillRect(0, 0, w, h);
+
+    // Clip
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r + 1, 0, Math.PI * 2);
+    ctx.clip();
+
+    // Crosshair
+    ctx.strokeStyle = "rgba(45, 114, 210, 0.05)";
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy + r); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy); ctx.stroke();
+
+    // Radial grid
+    ctx.strokeStyle = COL_GRID;
+    ctx.lineWidth = 0.5;
+    for (var g = 0; g < 360; g += 30) {
+      var gr = deg2rad(g);
+      ctx.beginPath(); ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + r * Math.cos(gr), cy + r * Math.sin(gr));
+      ctx.stroke();
+    }
+
+    // Sweep trail
+    var sweepRad = deg2rad(sweepAngle);
+    try {
+      var trailArc = 40 * Math.PI / 180;
+      var grad = ctx.createConicGradient(sweepRad - trailArc, cx, cy);
+      grad.addColorStop(0, "rgba(45, 114, 210, 0)");
+      grad.addColorStop(0.7, "rgba(45, 114, 210, 0.02)");
+      grad.addColorStop(1, "rgba(45, 114, 210, 0.08)");
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, r, sweepRad - trailArc, sweepRad);
+      ctx.closePath(); ctx.fill();
+    } catch (e) {}
+
+    ctx.restore();
+
+    // Range rings
+    var rings = [1, 2, 3, 4];
+    for (var i = 0; i < rings.length; i++) {
+      var rr = (rings[i] / MAX_RANGE) * r;
+      ctx.beginPath();
+      ctx.arc(cx, cy, rr, 0, Math.PI * 2);
+      ctx.strokeStyle = COL_RING;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = COL_DIM;
+      ctx.font = "8px 'JetBrains Mono', monospace";
+      ctx.textAlign = "left";
+      ctx.fillText(rings[i] + "m", cx + 3, cy - rr + 10);
+    }
+
+    // Outer ring
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(45, 114, 210, 0.2)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Compass
+    ctx.font = "bold 9px 'JetBrains Mono', monospace";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillStyle = COL_PRIMARY;
+    ctx.fillText("N", cx, cy - r - 8);
+    ctx.fillStyle = "rgba(45, 114, 210, 0.35)";
+    ctx.fillText("S", cx, cy + r + 8);
+    ctx.fillText("E", cx + r + 10, cy);
+    ctx.fillText("W", cx - r - 10, cy);
+
+    // Center
+    ctx.beginPath();
+    ctx.arc(cx, cy, 2, 0, Math.PI * 2);
+    ctx.fillStyle = COL_PRIMARY;
+    ctx.fill();
+
+    // Scan points
+    if (state.radar_points && state.radar_points.length) {
+      for (var p = 0; p < state.radar_points.length; p++) {
+        var pt = state.radar_points[p];
+        if (pt.type === "threat") continue;
+        var ptR = (Math.min(pt.range || 0, MAX_RANGE) / MAX_RANGE) * r;
+        var ptRad = deg2rad(pt.bearing || 0);
+        ctx.beginPath();
+        ctx.arc(cx + ptR * Math.cos(ptRad), cy + ptR * Math.sin(ptRad), 1.5, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(45, 114, 210, 0.15)";
+        ctx.fill();
+      }
+    }
+
+    // Threat dots
+    threatPulse += 0.07;
+    if (state.threats && state.threats.length) {
+      for (var t = 0; t < state.threats.length; t++) {
+        var threat = state.threats[t];
+        var tRange = threat.range != null ? Math.min(threat.range, MAX_RANGE) : MAX_RANGE * 0.7;
+        var tR = (tRange / MAX_RANGE) * r;
+        var tRad = deg2rad(threat.bearing || 0);
+        var tx = cx + tR * Math.cos(tRad);
+        var ty = cy + tR * Math.sin(tRad);
+        var level = (threat.level || "HIGH").toUpperCase();
+        var dotCol = level === "MEDIUM" ? COL_WARNING : COL_DANGER;
+
+        ctx.beginPath();
+        ctx.arc(tx, ty, t === 0 ? 4 : 3, 0, Math.PI * 2);
+        ctx.fillStyle = dotCol;
+        ctx.fill();
+
+        if (t === 0) {
+          ctx.strokeStyle = dotCol;
+          ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(tx - 8, ty); ctx.lineTo(tx - 5, ty); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(tx + 5, ty); ctx.lineTo(tx + 8, ty); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(tx, ty - 8); ctx.lineTo(tx, ty - 5); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(tx, ty + 5); ctx.lineTo(tx, ty + 8); ctx.stroke();
+        }
+      }
+    }
+
+    // Gimbal line
+    if (state.status !== "ALL_CLEAR") {
+      var gRad = deg2rad(state.gimbal_bearing || 0);
+      ctx.beginPath(); ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + r * Math.cos(gRad), cy + r * Math.sin(gRad));
+      ctx.strokeStyle = "rgba(45, 114, 210, 0.35)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Sweep line
+    ctx.beginPath(); ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + r * Math.cos(sweepRad), cy + r * Math.sin(sweepRad));
+    ctx.strokeStyle = COL_PRIMARY;
+    ctx.lineWidth = 1;
+    ctx.shadowColor = COL_PRIMARY;
+    ctx.shadowBlur = 6;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  /* ================================================================
+     DETECTION FEED
+     ================================================================ */
+  function addFeedEntry(cls, tag, msg) {
+    feedEntries.unshift({ cls: cls, tag: tag, msg: msg, time: nowTimeStr() });
+    if (feedEntries.length > MAX_FEED) feedEntries.length = MAX_FEED;
+    renderFeed();
+  }
+
+  function renderFeed() {
+    var html = "";
+    for (var i = 0; i < feedEntries.length; i++) {
+      var e = feedEntries[i];
+      var faded = i > 35 ? " faded" : "";
+      html += '<div class="feed-entry ' + e.cls + faded + '">'
+            + '<span class="feed-time">' + e.time + '</span>'
+            + '<span class="feed-tag">' + e.tag + '</span>'
+            + '<span class="feed-msg">' + e.msg + '</span>'
+            + '</div>';
+    }
+    feedList.innerHTML = html;
+    feedCountEl.textContent = feedEntries.length;
+  }
+
+  function generateFeedFromState() {
+    var prev = prevState;
+    var cur  = state;
+    var prevS = prev.active_sensors || [];
+    var curS  = cur.active_sensors || [];
+
+    for (var s = 0; s < curS.length; s++) {
+      if (prevS.indexOf(curS[s]) < 0) {
+        switch (curS[s]) {
+          case "rf":       addFeedEntry("rf", "RF", "RF anomaly detected, 2.4GHz band"); break;
+          case "pir":      addFeedEntry("pir", "PIR", "Infrared motion signature"); break;
+          case "visual":   addFeedEntry("visual", "VISION", "SHAHED-136 DETECTED - AI visual confirmation"); break;
+          case "distance": addFeedEntry("distance", "DIST", "Range: " + (cur.range_m != null ? cur.range_m.toFixed(1) + "m" : "measuring")); break;
+          case "acoustic": addFeedEntry("acoustic", "AUDIO", "Drone acoustic signature detected"); break;
+        }
+      }
+    }
+
+    for (var s2 = 0; s2 < prevS.length; s2++) {
+      if (curS.indexOf(prevS[s2]) < 0) {
+        addFeedEntry("sys", prevS[s2].toUpperCase(), "Signal lost");
+      }
+    }
+
+    if (cur.range_m != null && (prev.range_m == null || Math.abs(cur.range_m - prev.range_m) > 0.3)) {
+      if (curS.indexOf("distance") >= 0) addFeedEntry("distance", "DIST", "Range: " + cur.range_m.toFixed(1) + "m");
+    }
+
+    if (cur.bearing_deg != null && cur.confidence > 0.3 && (prev.bearing_deg == null || Math.abs(cur.bearing_deg - (prev.bearing_deg || 0)) > 5)) {
+      addFeedEntry("rf", "TRK", "Bearing: " + pad3(Math.round(cur.bearing_deg)) + "\u00B0");
+    }
+
+    if (cur.threat_level !== prev.threat_level) {
+      var lCls = cur.threat_level === "HIGH" ? "alert-high" : cur.threat_level === "MEDIUM" ? "alert-medium" : "sys";
+      addFeedEntry(lCls, "FUSED", "Threat level " + (cur.threat_level || "LOW") + " [" + (cur.confidence || 0).toFixed(2) + "]");
+    }
+
+    if (cur.status !== prev.status) {
+      if (cur.status === "TRACKING") addFeedEntry("alert-high", "ALERT", "SHAHED-136 DRONE DETECTED - TRACKING");
+      else if (cur.status === "DETECTING") addFeedEntry("alert-medium", "FUSED", "Detection in progress");
+      else if (cur.status === "ALL_CLEAR") addFeedEntry("sys", "CLEAR", "All clear");
+    }
+
+    if (cur.threats && cur.threats.length) {
+      for (var t = 0; t < cur.threats.length; t++) {
+        var th = cur.threats[t];
+        if (th.id && !seenThreatIds[th.id]) {
+          seenThreatIds[th.id] = true;
+          if ((th.level || "HIGH").toUpperCase() === "HIGH") {
+            addFeedEntry("alert-high", "THREAT", "HIGH target BRG " + pad3(Math.round(th.bearing || 0)) + "\u00B0 " + (th.range != null ? th.range.toFixed(1) + "m" : ""));
+          }
+        }
+      }
+    }
+
+    if (cur.laser_active !== prev.laser_active) {
+      addFeedEntry(cur.laser_active ? "alert-high" : "sys", "LASER", cur.laser_active ? "Laser ACTIVE" : "Laser off");
+    }
+  }
+
+  /* ================================================================
+     UPDATE UI
+     ================================================================ */
+  function drawSparkline() {
+    if (!sparklineCtx) return;
+    var c = sparklineCanvas;
+    var w = c.width, h = c.height;
+    var data = state.rf_signal_history || [];
+    sparklineCtx.clearRect(0, 0, w, h);
+    sparklineCtx.fillStyle = COL_BG;
+    sparklineCtx.fillRect(0, 0, w, h);
+    if (data.length < 2) return;
+    var min = data[0], max = data[0];
+    for (var i = 1; i < data.length; i++) { if (data[i] < min) min = data[i]; if (data[i] > max) max = data[i]; }
+    var range = max - min || 1;
+    sparklineCtx.beginPath();
+    sparklineCtx.strokeStyle = COL_PRIMARY;
+    sparklineCtx.lineWidth = 1.5;
+    for (var j = 0; j < data.length; j++) {
+      var x = (j / (data.length - 1)) * w;
+      var y = h - ((data[j] - min) / range) * (h - 6) - 3;
+      if (j === 0) sparklineCtx.moveTo(x, y); else sparklineCtx.lineTo(x, y);
+    }
+    sparklineCtx.stroke();
+    if (rfSignalVal && data.length) rfSignalVal.textContent = data[data.length - 1].toFixed(1) + " dB";
+  }
+
+  function updatePanels() {
+    siteTag.textContent = (state.site_id || "FOB-ALPHA").replace(/_/g, "-");
+
+    var st = (state.status || "ALL_CLEAR").replace(/_/g, " ");
+    statusBadge.textContent = st;
+    statusBadge.className = "status-badge";
+    if (state.status === "TRACKING") statusBadge.classList.add("tracking");
+    else if (state.status === "DETECTING") statusBadge.classList.add("detecting");
+    else statusBadge.classList.add("all-clear");
+
+    radarMode.textContent = state.status === "TRACKING" ? "Tracking" : state.status === "DETECTING" ? "Detecting" : "Scanning";
+    mapOverlayStatus.textContent = st;
+
+    var isActive = state.status !== "ALL_CLEAR" && state.confidence > 0.1;
+    threatIdle.style.display = isActive ? "none" : "flex";
+    threatActive.className = isActive ? "threat-card-active visible" : "threat-card-active";
+
+    if (isActive) {
+      var cls = classifyTarget(state.active_sensors);
+      threatTypeLabel.textContent = cls.type;
+
+      var lvl = (state.threat_level || "LOW").toLowerCase();
+      threatLevelTag.textContent = (state.threat_level || "LOW").toUpperCase();
+      threatLevelTag.className = "threat-level-tag " + lvl;
+
+      // Highlight threat card border for high threats
+      var threatCard = document.querySelector('.threat-card');
+      if (threatCard) {
+        threatCard.classList.remove('threat-high');
+        if (lvl === 'high') threatCard.classList.add('threat-high');
+      }
+
+      threatBearing.innerHTML = state.bearing_deg != null ? pad3(Math.round(state.bearing_deg)) + '<span class="threat-datum-unit">\u00B0</span>' : '---<span class="threat-datum-unit">\u00B0</span>';
+      threatRange.innerHTML = state.range_m != null ? state.range_m.toFixed(1) + '<span class="threat-datum-unit">m</span>' : '---<span class="threat-datum-unit">m</span>';
+
+      var conf = state.confidence || 0;
+      var pct = Math.round(conf * 100);
+      confPct.textContent = pct + "%";
+      confFill.style.width = pct + "%";
+      confFill.style.background = COL_PRIMARY;
+      confPct.style.color = "var(--text-secondary)";
+    }
+
+    gimbalNeedle.style.transform = "translateX(-50%) rotate(" + (state.gimbal_bearing || 0) + "deg)";
+    gimbalValue.textContent = "BRG " + pad3(Math.round(state.gimbal_bearing || 0)) + "\u00B0 / TILT " + pad3(Math.round(state.gimbal_tilt || 90)) + "\u00B0";
+
+    if (state.laser_active) {
+      laserDot.classList.add("active");
+      laserLabel.textContent = "ACTIVE";
+      laserLabel.className = "laser-text on";
+    } else {
+      laserDot.classList.remove("active");
+      laserLabel.textContent = "OFF";
+      laserLabel.className = "laser-text off";
+    }
+
+    var sensors = state.active_sensors || [];
+    for (var key in sensorEls) {
+      if (sensors.indexOf(key) >= 0) sensorEls[key].classList.add("active");
+      else sensorEls[key].classList.remove("active");
+    }
+
+    sensorDistVal.textContent = state.range_m != null ? state.range_m.toFixed(1) + "m" : "---";
+
+    // Per-sensor confidence bars
+    var sc = state.sensor_confidence || {};
+    var scMap = [["confRf","confRfPct",sc.rf],["confPir","confPirPct",sc.pir],["confVis","confVisPct",sc.visual],["confAud","confAudPct",sc.acoustic]];
+    for (var si = 0; si < scMap.length; si++) {
+      var sFill = document.getElementById(scMap[si][0]);
+      var sPct = document.getElementById(scMap[si][1]);
+      var sVal = scMap[si][2];
+      if (sFill && sPct) {
+        if (sVal != null) { var sp = Math.round(sVal * 100); sFill.style.width = sp + "%"; sPct.textContent = sp + "%"; }
+        else { sFill.style.width = "0%"; sPct.textContent = "--"; }
+      }
+    }
+
+    // RF signal sparkline
+    drawSparkline();
+
+    // Camera PiP overlay
+    var cameraBadge = document.getElementById("cameraBadge");
+    var cameraOverlayBr = document.getElementById("cameraOverlayBr");
+    var cameraPip = document.getElementById("cameraPip");
+    if (cameraBadge && cameraOverlayBr) {
+      var isThreat = state.status !== "ALL_CLEAR" && state.confidence > 0.1;
+      if (isThreat) {
+        cameraBadge.textContent = "THREAT";
+        cameraBadge.className = "camera-badge threat";
+        cameraOverlayBr.textContent = "SHAHED-136 " + Math.round((state.confidence || 0) * 100) + "%";
+        cameraOverlayBr.className = "camera-overlay-br threat";
+        if (cameraPip) cameraPip.classList.add("threat-active");
+      } else {
+        cameraBadge.textContent = "SCANNING";
+        cameraBadge.className = "camera-badge";
+        cameraOverlayBr.textContent = "NO THREAT";
+        cameraOverlayBr.className = "camera-overlay-br";
+        if (cameraPip) cameraPip.classList.remove("threat-active");
+      }
+    }
+
+    updateMapThreats();
+  }
+
+  /* ================================================================
+     CLOCK
+     ================================================================ */
+  function updateClock() {
+    var now = new Date();
+    clockUtc.textContent = pad2(now.getUTCHours()) + ":" + pad2(now.getUTCMinutes()) + ":" + pad2(now.getUTCSeconds()) + " UTC";
+  }
+
+  /* ================================================================
+     ANIMATION
+     ================================================================ */
+  function animate(timestamp) {
+    if (!lastFrameTime) lastFrameTime = timestamp;
+    var dt = timestamp - lastFrameTime;
+    lastFrameTime = timestamp;
+
+    if (state.status === "ALL_CLEAR") {
+      sweepAngle = (sweepAngle + dt * (SWEEP_SPEED / 1000)) % 360;
+    } else {
+      var target = state.gimbal_bearing || 0;
+      var diff = target - sweepAngle;
+      while (diff > 180) diff -= 360;
+      while (diff < -180) diff += 360;
+      sweepAngle += diff * 0.12;
+      if (sweepAngle < 0) sweepAngle += 360;
+      if (sweepAngle >= 360) sweepAngle -= 360;
+    }
+
+    drawRadar();
+    requestAnimationFrame(animate);
+  }
+
+  /* ================================================================
+     SOCKET.IO
+     ================================================================ */
+  function connectSocket() {
+    if (typeof io === "undefined") {
+      var script = document.createElement("script");
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js";
+      script.onload = function() { initSocket(); };
+      script.onerror = function() {
+        connLabel.textContent = "NO SOCKET.IO";
+        setTimeout(connectSocket, 5000);
+      };
+      document.head.appendChild(script);
+    } else {
+      initSocket();
+    }
+  }
+
+  function initSocket() {
+    var params = new URLSearchParams(window.location.search);
+    var wsHost = params.get("ws") || params.get("host");
+    var opts = { transports: ["websocket", "polling"], reconnection: true, reconnectionDelay: 1000, reconnectionDelayMax: 5000 };
+
+    var socket;
+    if (wsHost) {
+      socket = io((window.location.protocol === "https:" ? "https://" : "http://") + wsHost, opts);
+    } else {
+      socket = io(opts);
+    }
+
+    socket.on("connect", function() {
+      connected = true;
+      connDot.classList.add("connected");
+      connLabel.textContent = "CONNECTED";
+      addFeedEntry("sys", "SYS", "WebSocket connected");
+    });
+
+    socket.on("disconnect", function() {
+      connected = false;
+      connDot.classList.remove("connected");
+      connLabel.textContent = "DISCONNECTED";
+      addFeedEntry("alert-medium", "SYS", "Link lost, reconnecting...");
+    });
+
+    socket.on("state", function(data) {
+      if (!data) return;
+      prevState = JSON.parse(JSON.stringify(state));
+      for (var key in data) { if (data.hasOwnProperty(key)) state[key] = data[key]; }
+      generateFeedFromState();
+      updatePanels();
+    });
+
+    socket.on("connect_error", function() {
+      connected = false;
+      connDot.classList.remove("connected");
+      connLabel.textContent = "RECONNECTING...";
+    });
+  }
+
+  /* ================================================================
+     CAMERA TOGGLE
+     ================================================================ */
+  window.toggleCamera = function() {
+    var pip = document.getElementById("cameraPip");
+    var btn = document.getElementById("cameraShowBtn");
+    var feed = document.getElementById("cameraFeed");
+    if (!pip || !btn) return;
+    if (pip.style.display === "none") {
+      pip.style.display = "";
+      btn.style.display = "none";
+      feed.src = "/video_feed";
+    } else {
+      pip.style.display = "none";
+      btn.style.display = "block";
+      feed.src = "";
+    }
+  };
+
+  /* ================================================================
+     BOOT
+     ================================================================ */
+  updateClock();
+  setInterval(updateClock, 1000);
+  requestAnimationFrame(animate);
+  connectSocket();
+  initMap();
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+# Silver Dome — Dependencies
+# Core
+numpy>=1.24
+
+# RF Sensor (RTL-SDR)
+pyrtlsdr>=0.2.92
+
+# Visual Sensor / Drone Detection
+opencv-python>=4.8
+ultralytics>=8.0
+
+# Roboflow (optional — for Shahed-136 pre-trained model)
+# roboflow>=1.1
+# inference>=0.9
+
+# GPIO (Raspberry Pi only — install on Pi)
+# RPi.GPIO>=0.7.1
+# gpiozero>=2.0
+
+# Foundry API
+requests>=2.31
+
+# Dashboard
+flask>=3.0
+flask-socketio>=5.3
+
+# Acoustic Sensor
+pyaudio>=0.2.14
+
+# Utilities
+python-dotenv>=1.0
