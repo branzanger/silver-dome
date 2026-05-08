@@ -922,7 +922,7 @@ html, body {
         <span class="camera-toggle" id="cameraToggle" onclick="toggleCamera()" title="Toggle camera feed">&#x2715;</span>
       </div>
       <div class="camera-pip-wrap">
-        <img id="cameraFeed" src="/video_feed" alt="Camera Feed" />
+        <img id="cameraFeed" alt="Camera Feed" />
         <div class="camera-overlay-br" id="cameraOverlayBr">NO THREAT</div>
       </div>
     </div>
@@ -952,6 +952,8 @@ html, body {
   var SITE_LAT    = 25.1175;
   var SITE_LNG    = 51.3230;
   var MAP_SCALE   = 200;
+  var URL_PARAMS  = new URLSearchParams(window.location.search);
+  var BACKEND_ORIGIN = getBackendOrigin();
 
   var COL_BG       = "#1c2127";
   var COL_GRID     = "#2f343c";
@@ -1741,13 +1743,11 @@ html, body {
   }
 
   function initSocket() {
-    var params = new URLSearchParams(window.location.search);
-    var wsHost = params.get("ws") || params.get("host");
     var opts = { transports: ["websocket", "polling"], reconnection: true, reconnectionDelay: 1000, reconnectionDelayMax: 5000 };
 
     var socket;
-    if (wsHost) {
-      socket = io((window.location.protocol === "https:" ? "https://" : "http://") + wsHost, opts);
+    if (BACKEND_ORIGIN) {
+      socket = io(BACKEND_ORIGIN, opts);
     } else {
       socket = io(opts);
     }
@@ -1784,19 +1784,42 @@ html, body {
   /* ================================================================
      CAMERA TOGGLE
      ================================================================ */
+  function getBackendOrigin() {
+    var explicit = URL_PARAMS.get("backend");
+    if (explicit) return explicit.replace(/\/+$/, "");
+
+    var host = URL_PARAMS.get("ws") || URL_PARAMS.get("host");
+    if (!host) return "";
+    if (/^https?:\/\//i.test(host)) return host.replace(/\/+$/, "");
+
+    var proto = URL_PARAMS.get("proto") || URL_PARAMS.get("protocol");
+    if (!proto && /^(localhost|127\.0\.0\.1|\[::1\])(?::|$)/i.test(host)) proto = "http";
+    if (!proto) proto = window.location.protocol === "https:" ? "https" : "http";
+    return proto + "://" + host;
+  }
+
+  function backendUrl(path) {
+    if (!BACKEND_ORIGIN) return path;
+    return BACKEND_ORIGIN + path;
+  }
+
+  function setCameraFeed(enabled) {
+    var feed = document.getElementById("cameraFeed");
+    if (feed) feed.src = enabled ? backendUrl("/video_feed") : "";
+  }
+
   window.toggleCamera = function() {
     var pip = document.getElementById("cameraPip");
     var btn = document.getElementById("cameraShowBtn");
-    var feed = document.getElementById("cameraFeed");
     if (!pip || !btn) return;
     if (pip.style.display === "none") {
       pip.style.display = "";
       btn.style.display = "none";
-      feed.src = "/video_feed";
+      setCameraFeed(true);
     } else {
       pip.style.display = "none";
       btn.style.display = "block";
-      feed.src = "";
+      setCameraFeed(false);
     }
   };
 
@@ -1806,6 +1829,7 @@ html, body {
   updateClock();
   setInterval(updateClock, 1000);
   requestAnimationFrame(animate);
+  setCameraFeed(true);
   connectSocket();
   initMap();
 

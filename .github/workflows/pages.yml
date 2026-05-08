@@ -28,6 +28,9 @@ jobs:
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
+      - name: Use dashboard served by main.py
+        run: cp dashboard/templates/index.html public/index.html
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
