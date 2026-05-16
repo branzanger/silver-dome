@@ -1,25 +1,25 @@
 # Silver Dome
 
-**Portable Drone Early-Warning System** — 3rd Annual National Security Hackathon (Army xTech / Cerebral Valley)
+Portable drone early-warning prototype built for the 3rd Annual National Security Hackathon.
 
-A man-portable, self-contained drone early-warning and targeting kit that any forward unit can carry and deploy in under 10 minutes.
+Silver Dome pulls together cheap sensors, a Raspberry Pi, a small gimbal, and a local dashboard into a kit that can detect and track likely aerial threats. The repo includes simulation paths so the software can be run on a laptop without wiring up the hardware first.
 
-## The Problem
+## What It Does
 
-Forward Operating Positions, temporary command posts, and makeshift operations centers have **no organic early warning** against loitering munitions like the Shahed-136. High-end air defense (Patriot, THAAD) can't be allocated to every small unit. Soldiers die because no one had early warning.
+- Reads events from RF, PIR, camera, distance, and acoustic sensors
+- Correlates detections in a short time window and assigns a confidence score
+- Drives status LEDs and a pan/tilt gimbal when confidence crosses configured thresholds
+- Publishes high-confidence events to Palantir Foundry when credentials are configured
+- Serves a local dashboard at `http://localhost:8080`
 
-## The Solution
+The main goal is a low-cost field prototype, not a finished air-defense product. Most modules have hardware fallbacks or simulated modes so development can happen away from the Pi.
 
-Four-modality sensor fusion (RF + Infrared + Visual + Distance) that detects, classifies, ranges, and tracks aerial threats. When sensors correlate, a pan/tilt laser gimbal physically locks onto the threat bearing. The full threat picture syncs to Palantir Foundry for operator awareness.
+## Hardware
 
-## Why This Matters: Cost
+Approximate bill of materials:
 
-A Patriot intercept costs **$4 million**. A Shahed-136 drone costs **$20,000**. You cannot win an attrition war at that ratio.
-
-Silver Dome costs **under $200** in hardware:
-
-| Component | Cost |
-|-----------|------|
+| Component | Approx. cost |
+| --- | ---: |
 | Raspberry Pi 5 | $80 |
 | RTL-SDR USB dongle | $25 |
 | HC-SR04 ultrasonic sensor | $3 |
@@ -27,93 +27,105 @@ Silver Dome costs **under $200** in hardware:
 | Stepper motor + A4988 driver | $15 |
 | Servo motor | $5 |
 | USB webcam | $15 |
-| LEDs, resistors, wires | $5 |
+| LEDs, resistors, jumper wires | $5 |
 | Laser module | $3 |
 | **Total** | **~$153** |
 
-A $153 kit that gives any squad organic early warning. No dedicated operator. No cloud dependency. Deploy in under 10 minutes. The software is free and open source.
+See [HARDWARE_GUIDE.md](HARDWARE_GUIDE.md) for wiring notes and setup order.
 
-Scale: 1,000 kits = $153,000. One Patriot intercept = $4,000,000. You could field **26 Silver Dome kits** for the cost of a single missile.
+## Sensors
 
-## Sensor Array
+| Module | Hardware | Role |
+| --- | --- | --- |
+| RF | RTL-SDR | Watches common control/video bands for power anomalies |
+| PIR | HW-416 | Detects infrared motion triggers |
+| Visual | Webcam + YOLOv8 | Detects candidate objects in the camera feed |
+| Distance | HC-SR04 | Estimates short-range distance for the local threat picture |
+| Acoustic | Microphone | Adds another signal path for audible drone signatures |
 
-| Sensor | Technology | Detection Method |
-|--------|-----------|-----------------|
-| **RF** | RTL-SDR (RTL2832U) | 2.4 GHz power anomaly detection via FFT |
-| **IR** | HW-416 PIR | Passive infrared heat signature |
-| **Visual** | Camera + YOLOv8 | Object detection and classification |
-| **Distance** | HC-SR04 Ultrasonic | Range measurement for 2D threat picture |
+## Fusion Logic
 
-## Sensor Fusion
+Sensor events are grouped within a 3 second window. The fusion engine raises confidence as independent signals agree with each other.
 
-Events from different sensors within a 3-second window are correlated:
+| Inputs | Confidence | Behavior |
+| --- | ---: | --- |
+| RF only | 0.30 | Log event |
+| PIR only | 0.20 | Log event |
+| Acoustic only | 0.25 | Log event |
+| RF + PIR | 0.65 | Start gimbal scan, amber status |
+| RF + Visual | 0.70 | Start gimbal scan, eligible for Foundry write |
+| Acoustic + Visual | 0.92 | High-confidence track |
+| RF + PIR + Visual | 0.90 | Lock gimbal/laser, write event |
+| RF + PIR + Visual + Acoustic | 0.98 | Highest-confidence track |
 
-| Combination | Confidence | Action |
-|-------------|-----------|--------|
-| RF only | 0.30 | Log locally |
-| PIR only | 0.20 | Log locally |
-| RF + PIR | 0.65 | Gimbal scan, LED amber |
-| RF + Visual | 0.70 | Gimbal scan, write to Foundry |
-| RF + PIR + Visual | 0.90 | Laser lock-on, write to Foundry |
-
-## Hardware
-
-- **Compute**: Raspberry Pi 5
-- **Pan**: Stepper motor (360° with degree tracking)
-- **Tilt**: Servo motor
-- **Targeting**: Laser pointer on gimbal
-- **Indicators**: Green/Amber/Red LEDs
+Thresholds live in [config.py](config.py).
 
 ## Quick Start
 
+Create an environment, install dependencies, then run the app:
+
 ```bash
-# Install dependencies
 pip install -r requirements.txt
-
-# Run in simulation mode (no hardware required)
 SILVER_DOME_SIMULATE=true python main.py
+```
 
-# Run with hardware on Raspberry Pi
+Open the dashboard:
+
+```text
+http://localhost:8080
+```
+
+Run the scripted demo:
+
+```bash
+python demo.py --simulate
+```
+
+On the Pi, pass a site id if you want events tagged by location:
+
+```bash
 python main.py --site-id FOB-ALPHA
 ```
 
-## Environment Variables
+## Configuration
 
-| Variable | Description |
-|----------|-------------|
-| `SILVER_DOME_SIMULATE` | Set to `true` for simulation mode |
-| `SILVER_DOME_SITE_ID` | Deployment site identifier |
-| `FOUNDRY_BASE_URL` | Palantir Foundry stack URL |
-| `FOUNDRY_TOKEN` | Foundry API bearer token |
-| `FOUNDRY_ONTOLOGY_ID` | Target ontology ID |
-| `FOUNDRY_OBJECT_TYPE` | Object type (default: ThreatObject) |
+Common environment variables:
 
-## Architecture
+| Variable | Purpose |
+| --- | --- |
+| `SILVER_DOME_SIMULATE` | Enables simulated hardware paths |
+| `SILVER_DOME_SITE_ID` | Site identifier used in logs and events |
+| `SILVER_DOME_DRONE_MODEL` | Uses the drone-specific YOLO model when set to `true` |
+| `SILVER_DOME_LOG_LEVEL` | Python logging level, default `INFO` |
+| `FOUNDRY_BASE_URL` | Foundry stack URL |
+| `FOUNDRY_TOKEN` | Foundry bearer token |
+| `FOUNDRY_ONTOLOGY_ID` | Target ontology id |
+| `FOUNDRY_OBJECT_TYPE` | Foundry object type, default `ThreatObject` |
 
+Foundry is optional. If credentials are missing, events are logged locally and writes are skipped or queued depending on the client path.
+
+## Project Layout
+
+```text
+comms/       Foundry client
+dashboard/   Flask dashboard server
+display/     LED/status output
+fusion/      event correlation and confidence scoring
+gimbal/      pan/tilt controller
+sensors/     RF, PIR, visual, distance, acoustic sensor modules
+tests/       unit tests for fusion, gimbal, and shared models
 ```
-Phone/Drone → [RF Sensor] ──┐
-             [PIR Sensor] ──┤→ Fusion Engine → Gimbal Lock-On → Palantir Foundry
-             [Camera+YOLO] ─┤        ↓              ↓
-             [HC-SR04 Dist] ┘   LED Status      Laser Target
-                                    ↓
-                            Web Dashboard (:8080)
-```
 
-## Live Dashboard
-
-A self-hosted radar display runs on the Pi at `http://<pi-ip>:8080`. Zero cloud dependency. Shows real-time 2D polar radar view, sensor status, threat log, and confidence scoring. Designed to work air-gapped in contested environments.
-
-## Demo
+## Tests
 
 ```bash
-# Scripted 3-minute demo (simulated sensors)
-python demo.py --simulate
-
-# Full system with dashboard
-SILVER_DOME_SIMULATE=true python main.py
-# Then open http://localhost:8080
+pytest
 ```
 
-## Team
+## Notes
+
+- `main.py` currently starts in a laptop-friendly, vision-primary mode.
+- The bundled model files are for demo/prototype work and should be validated before any real deployment.
+- Laser hardware should be treated carefully during testing. Keep it pointed away from people, reflective surfaces, and aircraft.
 
 Built at Shack15 SF, May 2-3 2026.
